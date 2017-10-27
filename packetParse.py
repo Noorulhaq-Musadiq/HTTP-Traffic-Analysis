@@ -24,7 +24,7 @@ class Device():
 
 RET = {}
 for line in TSHARK:
-    packet = line.split(";")
+    packet = line.split("~")
     uaString = packet[0]
     ipSource = packet[1]
     ipDestination = packet[2]
@@ -57,18 +57,18 @@ def print_attribs(mac):
     p = RET[mac]
     print "Client is: " + str(mac)
     print "IP's this client has used: "
-    for j in p.ip:
-        print j
+    for ipA in p.ip_addr:
+        print ipA
     print "Client has connected to AP's with MACs: "
-    for j in p.access_point:
-        print j
-    for j in p.user_agent_ip:
-        ip_addr = str(j[0])
-        user_agent = str(j[1])
+    for ap in p.access_point:
+        print ap
+    for pair in p.user_agent_ip:
+        ip_addr = str(pair[0])
+        user_agent = str(pair[1])
         print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
     print "URIs this client has Navigated To:"
-    for j in j.uris:
-        print j
+    for uri in p.uris:
+        print uri
 
 
 if __name__ == "__main__":
