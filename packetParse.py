@@ -3,67 +3,75 @@
 """
 Created on Thu Oct 26 12:44:39 2017
 
-@author: root
+@author: TheKingOfShade
 Traffic Analysis Tool
 """
 with open('./tsharkOutput') as t:
-    tshark = t.readlines()
+    TSHARK = t.readlines()
+
 
 class Device():
-    def __init__(self,mac):
+    'Default Class for Devices On Network'
+    def __init__(self, mac):
         self.mac = mac
-        self.ip = []
-        self.userAgentString = []
-        self.AP = []
-        self.destIPs = []
-        self.URIs = []
-        self.userAgentIP = []
+        self.ip_addr = []
+        self.user_agent_string = []
+        self.access_point = []
+        self.dest_ips = []
+        self.uris = []
+        self.user_agent_ip = []
 
-ret = {}
-for line in tshark:
+
+RET = {}
+for line in TSHARK:
     packet = line.split(";")
     uaString = packet[0]
     ipSource = packet[1]
     ipDestination = packet[2]
-    macSource =packet[3]
-    macAP=packet[4]
-    uri=packet[5]
-    uAIP = (ipDestination,uaString)
-    if macSource not in ret:
-        ret[macSource] = Device(macSource)
-    i = ret[macSource]
-    i.ip.append(ipSource)
-    i.userAgentString.append(uaString)
-    i.AP.append(macAP)
-    i.destIPs.append(ipDestination)
-    i.URIs.append(uri)
-    i.userAgentIP.append(uAIP)
-for k,v in ret.items():
-    v.userAgentIP = set(v.userAgentIP)
-    v.ip = set(v.ip)
-    v.userAgenString = set(v.userAgentString)
-    v.AP = set(v.AP)
-    v.destIPs = set(v.destIPs)
-    v.URIs = set(v.URIs)
+    macSource = packet[3]
+    macAP = packet[4]
+    uri = packet[5]
+    uAIP = (ipDestination, uaString)
+    if macSource not in RET:
+        RET[macSource] = Device(macSource)
+    i = RET[macSource]
+    i.ip_addr.append(ipSource)
+    i.user_agent_string.append(uaString)
+    i.access_point.append(macAP)
+    i.dest_ips.append(ipDestination)
+    i.uris.append(uri)
+    i.user_agent_ip.append(uAIP)
 
-def printAttribs(macAddress):
-    print("<--------------------------------------------------------->")
-    i = ret[macAddress]
-    print("Client is: " + str(macAddress))
-    print("IP's this client has used: " )
-    for j in i.ip:
-        print(j)
-    print("Client has connected to AP's with MACs: ")
-    for j in i.AP:
-        print(j)
-    for j in i.userAgentIP:
-        print("Client Navigated to " + str(j[0]) + " using UA String: " + str(j[1]))
-    print("URIs this client has Navigated To:")
-    for j in i.URIs:
-        print(j)
-
-for k,v in ret.items():
-    printAttribs(k)
+for k, v in RET.items():
+    v.user_agent_ip = set(v.user_agent_ip)
+    v.ip_addr = set(v.ip_addr)
+    v.user_agent_string = set(v.user_agent_string)
+    v.access_point = set(v.access_point)
+    v.dest_ips = set(v.dest_ips)
+    v.uris = set(v.uris)
 
 
+def print_attribs(mac):
+    '''Print the attributes of a device'''
+    print "<--------------------------------------------------------->"
+    p = RET[mac]
+    print "Client is: " + str(mac)
+    print "IP's this client has used: "
+    for j in p.ip:
+        print j
+    print "Client has connected to AP's with MACs: "
+    for j in p.access_point:
+        print j
+    for j in p.user_agent_ip:
+        ip_addr = str(j[0])
+        user_agent = str(j[1])
+        print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
+    print "URIs this client has Navigated To:"
+    for j in j.uris:
+        print j
+
+
+if __name__ == "__main__":
+    for k, v in RET.items():
+        print_attribs(k)
     
