@@ -6,9 +6,11 @@ Created on Thu Oct 26 12:44:39 2017
 @author: TheKingOfShade
 Traffic Analysis Tool
 """
+import csv
+import httpagentparser
+
 with open('./tsharkOutput') as t:
     TSHARK = t.readlines()
-
 
 class Device():
     'Default Class for Devices On Network'
@@ -20,6 +22,7 @@ class Device():
         self.dest_ips = []
         self.uris = []
         self.user_agent_ip = []
+
 
 
 RET = {}
@@ -66,6 +69,8 @@ def print_attribs(mac):
         ip_addr = str(pair[0])
         user_agent = str(pair[1])
         print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
+        print "Here is the info for that User Agent String:"
+        print httpagentparser.detect(user_agent)
     print "URIs this client has Navigated To:"
     for uri in p.uris:
         print uri
