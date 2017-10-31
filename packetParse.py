@@ -6,13 +6,38 @@ Created on Thu Oct 26 12:44:39 2017
 @author: TheKingOfShade
 Traffic Analysis Tool
 """
-
+import argparse
 import httpagentparser
+import subprocess
+import shlex
 
-with open('./tsharkOutputHTTP') as t:
-    TSHARK = t.readlines()
-with open('./tsharkOutputAP') as a:
-	TSHARK_AP = a.readlines()
+parser = argparse.ArgumentParser()
+parser.add_argument("pcap", type=str, help="Decrypted PCAP that you want to Analyze")
+args = parser.parse_args()
+PCAP = args.pcap.strip()
+
+def getCommand(command):
+    command = shlex.split(command)
+    ret = []
+    packets = subprocess.check_output(command).split('\n')
+    for i in packets:
+        g = i.split('~')
+        if g not in ret:
+            ret.append(g)
+    ret.remove([''])
+    return ret
+
+AP_info_command = 'tshark -r '+ PCAP + ' -2 -R wlan.fc.type_subtype==8 -T fields -E separator="~" -e wlan.sa -e wlan.ssid -e wlan.ds.current_channel -e wlan.extended_supported_rates -e wlan.tag.number -e wlan.rsn.gcs.type'
+client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.da -e http.request.full_uri'
+
+TSHARK = getCommand(client_info_command)
+TSHARK_AP = getCommand(AP_info_command)
+print TSHARK
+print TSHARK_AP
+#with open('./tsharkOutputHTTP') as t:
+#    TSHARK = t.readlines()
+#with open('./tsharkOutputAP') as a:
+#	TSHARK_AP = a.readlines()
 with open('./betterOUI') as b:
     OUI = b.readlines()
 
@@ -53,8 +78,8 @@ def getOUI(mac):
             return line[1].strip()
 
 RETClient = {}
-for line in TSHARK:
-    packet = line.split("~")
+for packet in TSHARK:
+    #packet = line.split("~")
     uaString = packet[0]
     ipSource = packet[1]
     ipDestination = packet[2]
@@ -73,8 +98,8 @@ for line in TSHARK:
     i.user_agent_ip.append(uAIP)
 
 RETAp = {}
-for line in TSHARK_AP:
-    packet = line.split('~')
+for packet in TSHARK_AP:
+    #packet = line.split('~')
     bssid = packet[0]
     ssid = packet[1]
     channel = packet[2]
