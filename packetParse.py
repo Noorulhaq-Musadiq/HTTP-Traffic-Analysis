@@ -12,9 +12,11 @@ import subprocess
 import shlex
 
 parser = argparse.ArgumentParser()
-parser.add_argument("pcap", type=str, help="Decrypted PCAP that you want to Analyze")
+parser.add_argument("pcap", type=str, help="Decrypted PCAP that you want to analyze")
+parser.add_argument("-d","--nouri", help="Disable URI display for clients", action="store_true")
 args = parser.parse_args()
 PCAP = args.pcap.strip()
+NoURI = args.nouri
 
 def getCommand(command):
     command = shlex.split(command)
@@ -28,16 +30,11 @@ def getCommand(command):
     return ret
 
 AP_info_command = 'tshark -r '+ PCAP + ' -2 -R wlan.fc.type_subtype==8 -T fields -E separator="~" -e wlan.sa -e wlan.ssid -e wlan.ds.current_channel -e wlan.extended_supported_rates -e wlan.tag.number -e wlan.rsn.gcs.type'
-client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.da -e http.request.full_uri'
+client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.ra -e http.request.full_uri'
 
 TSHARK = getCommand(client_info_command)
 TSHARK_AP = getCommand(AP_info_command)
-print TSHARK
-print TSHARK_AP
-#with open('./tsharkOutputHTTP') as t:
-#    TSHARK = t.readlines()
-#with open('./tsharkOutputAP') as a:
-#	TSHARK_AP = a.readlines()
+
 with open('./betterOUI') as b:
     OUI = b.readlines()
 
@@ -79,7 +76,6 @@ def getOUI(mac):
 
 RETClient = {}
 for packet in TSHARK:
-    #packet = line.split("~")
     uaString = packet[0]
     ipSource = packet[1]
     ipDestination = packet[2]
@@ -99,13 +95,15 @@ for packet in TSHARK:
 
 RETAp = {}
 for packet in TSHARK_AP:
-    #packet = line.split('~')
     bssid = packet[0]
     ssid = packet[1]
     channel = packet[2]
     extended_supported_rates = packet[3].split(',')
     tags = packet[4].split(',')
-    cypher = packet[5]
+    if packet[5] == '':
+        pass
+    else:
+        cypher = packet[5]
     if bssid not in RETAp:
         RETAp[bssid]= AccessPoint(bssid)
     i = RETAp[bssid]
@@ -123,8 +121,10 @@ for packet in TSHARK_AP:
         i.mode = 'B'
     if int(cypher) == 4:
         i.enc = 'WPA'
-    else:
+    elif int(cypher) == 2:
         i.enc = 'WPA2'
+    else:
+        i.enc = 'UNKNOWN'
 
 
 for k, v in RETClient.items():
@@ -148,18 +148,21 @@ def print_attribs_Client(mac):
         print ipA
     print "Client has connected to AP's with MACs: "
     for ap in p.access_point:
-        print ap
+        print ap + ' ('+ str(getOUI(ap)) + ') '
     for pair in p.user_agent_ip:
         ip_addr = str(pair[0])
         user_agent = str(pair[1])
         print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
         print "Here is the info for that User Agent String:"
-        print httpagentparser.detect(user_agent)
+        print httpagentparser.simple_detect(user_agent)
         print
-        print
-    print "URIs this client has Navigated To:"
-    for uri in p.uris:
-        print uri.strip() + '\n'
+	print
+    if NoURI:
+	pass
+    else:
+        print "URIs this client has Navigated To:"
+        for uri in p.uris:
+	    print uri.strip() + '\n'
 
 def print_attribs_AP(mac):
     '''Prints Access Point Attributes'''
@@ -169,6 +172,7 @@ def print_attribs_AP(mac):
     print "SSID is: " + p.ssid
     print "Channel Collected was: " + p.channel
     print "Mode seems to be: " + p.mode
+    print "Encryption is: " + p.enc
 
 
 
