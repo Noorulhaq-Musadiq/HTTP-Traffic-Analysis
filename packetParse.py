@@ -31,9 +31,11 @@ def getCommand(command):
 
 AP_info_command = 'tshark -r '+ PCAP + ' -2 -R wlan.fc.type_subtype==8 -T fields -E separator="~" -e wlan.sa -e wlan.ssid -e wlan.ds.current_channel -e wlan.extended_supported_rates -e wlan.tag.number -e wlan.rsn.gcs.type'
 client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.ra -e http.request.full_uri'
+IP_info_command = 'tshark -r '+ PCAP + ' -2 -R arp -T fields -E separator="~" -e arp.src.proto_ipv4 -e arp.src.hw_mac'
 
 TSHARK = getCommand(client_info_command)
 TSHARK_AP = getCommand(AP_info_command)
+TSHARK_IP = getCommand(IP_info_command)
 
 with open('./betterOUI') as b:
     OUI = b.readlines()
@@ -124,8 +126,17 @@ for packet in TSHARK_AP:
     elif int(cypher) == 2:
         i.enc = 'WPA2'
     else:
-        i.enc = 'UNKNOWN'
+        i.enc = 'OPEN or WEP'
 
+for packet in TSHARK_IP:
+    ip = packet[0]
+    mac = packet[1]
+    if mac in RETClient:
+            RETClient[mac].ip_addr.append(ip)
+    elif mac in RETAp:
+        RETAp[mac].ip_addr.append(ip)
+    else:
+        pass
 
 for k, v in RETClient.items():
     v.user_agent_ip = set(v.user_agent_ip)
@@ -149,26 +160,29 @@ def print_attribs_Client(mac):
     print "Client has connected to AP's with MACs: "
     for ap in p.access_point:
         print ap + ' ('+ str(getOUI(ap)) + ') '
-    for pair in p.user_agent_ip:
-        ip_addr = str(pair[0])
-        user_agent = str(pair[1])
-        print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
-        print "Here is the info for that User Agent String:"
-        print httpagentparser.simple_detect(user_agent)
-        print
-	print
     if NoURI:
-	pass
+	for ua in p.user_agent_string:
+            print "User Agent String is: " + str(ua)
+            print "Information for that User Agent is: " + str(httpagentparser.simple_detect(ua))
     else:
-        print "URIs this client has Navigated To:"
-        for uri in p.uris:
-	    print uri.strip() + '\n'
+        for pair in p.user_agent_ip:
+            ip_addr = str(pair[0])
+            user_agent = str(pair[1])
+            print "Client Navigated to " + ip_addr + " using UA String: " + user_agent
+            print "Here is the info for that User Agent String:"
+            print httpagentparser.simple_detect(user_agent)
+            print
+	    print
+            print "URIs this client has Navigated To:"
+            for uri in p.uris:
+	        print uri.strip() + '\n'
 
 def print_attribs_AP(mac):
     '''Prints Access Point Attributes'''
     print '###########################################################'
     p = RETAp[mac]
     print "BSSID is: " + str(mac) + ' ('+ str(p.oui) + ') '
+    print "IP is : " + str(p.ip_addr)
     print "SSID is: " + p.ssid
     print "Channel Collected was: " + p.channel
     print "Mode seems to be: " + p.mode
