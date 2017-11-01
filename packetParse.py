@@ -67,7 +67,7 @@ class AccessPoint(Device):
     'Default Class For Access Points'
     def __init__(self, mac):
         Device.__init__(self, mac)
-        self.SSID = ''
+        self.ssid = ''
         self.mode = ''
         self.channel = ''
         self.enc = ''
@@ -93,15 +93,18 @@ for packet in TSHARK:
     if macSource not in RETClient:
         RETClient[macSource] = Client(macSource)
     i = RETClient[macSource]
-    i.ip_addr.append(ipSource)
-    i.user_agent_string.append(uaString)
-    i.access_point.append(macAP)
-    i.dest_ips.append(ipDestination)
-    i.uris.append(uri)
-    i.user_agent_ip.append(uAIP)
-    uaParse = httpagentparser.simple_detect(uaString)
-    i.os.append(uaParse[0])
-    i.browser.append(uaParse[1])
+    if ipSource not in i.ip_addr:
+        i.ip_addr.append(ipSource)
+    if uaString not in i.user_agent_string:
+        i.user_agent_string.append(uaString)
+    if macAP not in i.access_point:
+        i.access_point.append(macAP)
+    if ipDestination not in i.dest_ips:
+        i.dest_ips.append(ipDestination)
+    if uri not in i.uris:
+        i.uris.append(uri)
+    if uAIP not in i.user_agent_ip:
+        i.user_agent_ip.append(uAIP)
 
 RETAp = {}
 for packet in TSHARK_AP:
@@ -135,7 +138,7 @@ for packet in TSHARK_AP:
         i.enc = 'WPA2'
     else:
         i.enc = 'OPEN or WEP'
-    i.access_point = bssid
+    i.access_point.append(bssid)
 
 devices = {}
 for packet in TSHARK_IP:
@@ -149,14 +152,6 @@ for packet in TSHARK_IP:
         RETClient[mac].ip_addr.append(ip)
     elif mac in RETAp:
         RETAp[mac].ip_addr.append(ip)
-
-for k, v in RETClient.items():
-    v.user_agent_ip = set(v.user_agent_ip)
-    v.ip_addr = set(v.ip_addr)
-    v.user_agent_string = set(v.user_agent_string)
-    v.access_point = set(v.access_point)
-    v.dest_ips = set(v.dest_ips)
-    v.uris = set(v.uris)
     
 for k, v in RETAp.items():
     devices[k]=v
@@ -216,37 +211,47 @@ def print_attribs_Device(mac):
             for j in p.access_point:
                 print 'This is associated with BSSID: ' + str(j) + ' ('+ str(getOUI(j)) + ') '
 
-def writeToCSV(dic):
-    with open(csvfile,'w') as csvf:
-        fieldnames = ['MAC','OUI','BSSID','BSSID-OUI','SSID','CHANNEL','OS','BROWSER']
-        writer = csv.DictWriter(csvf,fieldnames=fieldnames)
-        writer.writeheader()
-        rows = []
-        for k, v in dic.items():
-            mac = str(v.mac)
-            oui = getOUI(mac)
-            ip = str(v.ip_addr)
-            bssid = str(v.bssid)
-            bssid_oui = getOUI(bssid)
-            ssid = str(dic[bssid].ssid)
-            channel = str(dic[bssid].channel)
-            try:
-                if len(v.user_agent_strings) > 0:
-                    for ua in v.user_agent_strings:
-                        uaParse = httpagentparse.simple_detect(ua)
-                        os = uaParse[0]
-                        browser = uaParse[1]
-                        row = {'MAC':mac,'OUI':oui,'BSSID':bssid,'BSSID-OUI':bssid_oui,'SSID':ssid,'CHANNEL':channel,'OS':os,'BROWSER':browser}
-                        rows.append(row)
-            except:
-                row ={'MAC':mac,'OUI':oui,'BSSID':bssid,'BSSID-OUI':bssid_oui,'SSID':ssid,'CHANNEL':channel,'OS':'','BROWSER':''}
-                rows.append(row)
-        for i in rows:
-            writer.writerow(i)
+rows = []
+for k, v in devices.items():
+    print k + "has bssid of" + str(v.access_point)
+    mac = str(v.mac)
+    oui = getOUI(mac)
+    ip_to_parse = set(v.ip_addr)
+    ip = []
+    for i in ip_to_parse:
+        if i not in ip:
+            ip.append(i)
+    bssid = v.access_point
+    bssid = bssid[0]
+    bssid_oui = getOUI(bssid) 
+    ssid = devices[bssid].ssid
+    channel = devices[bssid].channel
+    try:
+        for ua in v.user_agent_string:
+            uaParse = httpagentparser.simple_detect(ua)
+            os = uaParse[0]
+            browser = uaParse[1]
+            row = [mac,oui,ip,bssid,bssid_oui,ssid,channel,os,browser]
+            rows.append(row)
+    except AttributeError:
+        row =[mac,oui,ip,bssid,bssid_oui,ssid,channel,'','']
+        rows.append(row)
+    else:
+        print "Something Went Wrong"
+
+def writeToCSV(rows):
+    csvf = open(csvfile,'w+')
+    fieldnames = ['MAC','OUI','IP','BSSID','BSSID-OUI','SSID','CHANNEL','OS','BROWSER']
+    writer = csv.writer(csvf, delimiter=',', quotechar='"')
+    writer.writerow(fieldnames)
+    for i in rows:
+        writer.writerow(i)
+    csvfile.flush()
+    csvfile.close()
 
 try:
     if len(csvfile) > 0:
-        writeToCSV(devices)
+        writeToCSV(rows)
 except:
     pass
 
