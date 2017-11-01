@@ -30,8 +30,8 @@ def getCommand(command):
     return ret
 
 AP_info_command = 'tshark -r '+ PCAP + ' -2 -R wlan.fc.type_subtype==8 -T fields -E separator="~" -e wlan.sa -e wlan.ssid -e wlan.ds.current_channel -e wlan.extended_supported_rates -e wlan.tag.number -e wlan.rsn.gcs.type'
-client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.ra -e http.request.full_uri'
-IP_info_command = 'tshark -r '+ PCAP + ' -2 -R arp -T fields -E separator="~" -e arp.src.proto_ipv4 -e arp.src.hw_mac'
+client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.bssid -e http.request.full_uri'
+IP_info_command = 'tshark -r '+ PCAP + ' -2 -R arp -T fields -E separator="~" -e arp.src.proto_ipv4 -e arp.src.hw_mac -e wlan.bssid'
 
 TSHARK = getCommand(client_info_command)
 TSHARK_AP = getCommand(AP_info_command)
@@ -46,17 +46,18 @@ class Device():
         self.mac = mac
         self.ip_addr = []
         self.oui = getOUI(mac)
-
+        self.access_point = []
 
 class Client(Device):
     'Default Class for Network Clients'
     def __init__(self,mac):
         Device.__init__(self,mac)
         self.user_agent_string = []
-        self.access_point = []
         self.dest_ips = []
         self.uris = []
         self.user_agent_ip = []
+        self.os = []
+        self.browser = []
 
 class AccessPoint(Device):
     'Default Class For Access Points'
@@ -94,6 +95,9 @@ for packet in TSHARK:
     i.dest_ips.append(ipDestination)
     i.uris.append(uri)
     i.user_agent_ip.append(uAIP)
+    uaParse = httpagentparser.simple_detect(uaString)
+    i.os.append(uaParse[0])
+    i.browser.append(uaParse[1])
 
 RETAp = {}
 for packet in TSHARK_AP:
@@ -127,16 +131,20 @@ for packet in TSHARK_AP:
         i.enc = 'WPA2'
     else:
         i.enc = 'OPEN or WEP'
+    i.access_point = bssid
 
+devices = {}
 for packet in TSHARK_IP:
     ip = packet[0]
     mac = packet[1]
+    bssid = packet[2]
+    devices[mac] = Device(mac)
+    devices[mac].ip_addr.append(ip)
+    devices[mac].access_point.append(bssid)
     if mac in RETClient:
-            RETClient[mac].ip_addr.append(ip)
+        RETClient[mac].ip_addr.append(ip)
     elif mac in RETAp:
         RETAp[mac].ip_addr.append(ip)
-    else:
-        pass
 
 for k, v in RETClient.items():
     v.user_agent_ip = set(v.user_agent_ip)
@@ -146,7 +154,10 @@ for k, v in RETClient.items():
     v.dest_ips = set(v.dest_ips)
     v.uris = set(v.uris)
     
-
+for k, v in RETAp.items():
+    devices[k]=v
+for k, v in RETClient.items():
+    devices[k]=v
 
 
 def print_attribs_Client(mac):
@@ -163,7 +174,8 @@ def print_attribs_Client(mac):
     if NoURI:
 	for ua in p.user_agent_string:
             print "User Agent String is: " + str(ua)
-            print "Information for that User Agent is: " + str(httpagentparser.simple_detect(ua))
+            print "Information for that User Agent is: "
+            print httpagentparser.simple_detect(ua)
     else:
         for pair in p.user_agent_ip:
             ip_addr = str(pair[0])
@@ -188,10 +200,22 @@ def print_attribs_AP(mac):
     print "Mode seems to be: " + p.mode
     print "Encryption is: " + p.enc
 
-
+def print_attribs_Device(mac):
+    '''Prints Other Device Attributes'''
+    if mac not in RETAp:
+        if mac not in RETClient:
+            p = devices[mac]
+            print '*****************************************************'
+            print 'Mac is: ' + str(mac) + ' ('+ str(p.oui) + ') '
+            for i in p.ip_addr:
+                print 'IP is: ' + str(i)
+            for j in p.access_point:
+                print 'This is associated with BSSID: ' + str(j) + ' ('+ str(getOUI(j)) + ') '
 
 if __name__ == "__main__":
     for k, v in RETAp.items():
         print_attribs_AP(k)
     for k, v in RETClient.items():
         print_attribs_Client(k)
+    for k, v in devices.items():
+        print_attribs_Device(k)
