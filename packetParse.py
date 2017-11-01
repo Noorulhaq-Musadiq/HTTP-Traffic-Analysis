@@ -10,11 +10,15 @@ import argparse
 import httpagentparser
 import subprocess
 import shlex
+import csv
 
 parser = argparse.ArgumentParser()
 parser.add_argument("pcap", type=str, help="Decrypted PCAP that you want to analyze")
 parser.add_argument("-d","--nouri", help="Disable URI display for clients", action="store_true")
+parser.add_argument("-w","--csv",type=str,help="Write output to CSV",action="store")
 args = parser.parse_args()
+
+csvfile = args.csv
 PCAP = args.pcap.strip()
 NoURI = args.nouri
 
@@ -32,7 +36,7 @@ def getCommand(command):
 AP_info_command = 'tshark -r '+ PCAP + ' -2 -R wlan.fc.type_subtype==8 -T fields -E separator="~" -e wlan.sa -e wlan.ssid -e wlan.ds.current_channel -e wlan.extended_supported_rates -e wlan.tag.number -e wlan.rsn.gcs.type'
 client_info_command = 'tshark -r ' + PCAP + ' -2 -R http.user_agent -T fields -E separator="~" -e http.user_agent -e ip.src -e ip.dst -e wlan.sa -e wlan.bssid -e http.request.full_uri'
 IP_info_command = 'tshark -r '+ PCAP + ' -2 -R arp -T fields -E separator="~" -e arp.src.proto_ipv4 -e arp.src.hw_mac -e wlan.bssid'
-
+	
 TSHARK = getCommand(client_info_command)
 TSHARK_AP = getCommand(AP_info_command)
 TSHARK_IP = getCommand(IP_info_command)
@@ -211,6 +215,40 @@ def print_attribs_Device(mac):
                 print 'IP is: ' + str(i)
             for j in p.access_point:
                 print 'This is associated with BSSID: ' + str(j) + ' ('+ str(getOUI(j)) + ') '
+
+def writeToCSV(dic):
+    with open(csvfile,'w') as csvf:
+        fieldnames = ['MAC','OUI','BSSID','BSSID-OUI','SSID','CHANNEL','OS','BROWSER']
+        writer = csv.DictWriter(csvf,fieldnames=fieldnames)
+        writer.writeheader()
+        rows = []
+        for k, v in dic.items():
+            mac = str(v.mac)
+            oui = getOUI(mac)
+            ip = str(v.ip_addr)
+            bssid = str(v.bssid)
+            bssid_oui = getOUI(bssid)
+            ssid = str(dic[bssid].ssid)
+            channel = str(dic[bssid].channel)
+            try:
+                if len(v.user_agent_strings) > 0:
+                    for ua in v.user_agent_strings:
+                        uaParse = httpagentparse.simple_detect(ua)
+                        os = uaParse[0]
+                        browser = uaParse[1]
+                        row = {'MAC':mac,'OUI':oui,'BSSID':bssid,'BSSID-OUI':bssid_oui,'SSID':ssid,'CHANNEL':channel,'OS':os,'BROWSER':browser}
+                        rows.append(row)
+            except:
+                row ={'MAC':mac,'OUI':oui,'BSSID':bssid,'BSSID-OUI':bssid_oui,'SSID':ssid,'CHANNEL':channel,'OS':'','BROWSER':''}
+                rows.append(row)
+        for i in rows:
+            writer.writerow(i)
+
+try:
+    if len(csvfile) > 0:
+        writeToCSV(devices)
+except:
+    pass
 
 if __name__ == "__main__":
     for k, v in RETAp.items():
